@@ -1,7 +1,13 @@
 from maze_environment import load_level, show_level, save_level_costs
+import math
 from math import inf, sqrt
 from heapq import heappop, heappush
 
+def euclidean_distance(source, destination):
+    x1, y1 = source
+    x2, y2 = destination
+
+    return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)  
 
 def dijkstras_shortest_path(initial_position, destination, graph, adj):
     """ Searches for a minimal cost path through a graph using Dijkstra's algorithm.
@@ -20,17 +26,18 @@ def dijkstras_shortest_path(initial_position, destination, graph, adj):
     paths = {initial_position: []}          # maps cells to previous cells on path
     pathcosts = {initial_position: 0}       # maps cells to their pathcosts (found so far)
     queue = []
-    heappush(queue, (0, initial_position))  # maintain a priority queue of cells
+    heappush(queue, (0+ euclidean_distance(initial_position, destination), initial_position))  # maintain a priority queue of cells
     
     while queue:
         priority, cell = heappop(queue)
+        priority -= euclidean_distance(cell, destination)
         if cell == destination:
             return path_to_cell(cell, paths)
         
         # investigate children
         for (child, step_cost) in adj(graph, cell):
             # calculate cost along this path to child
-            cost_to_child = priority + transition_cost(graph, cell, child)
+            cost_to_child = priority + transition_cost(graph, cell, child) + euclidean_distance(child, destination) 
             if child not in pathcosts or cost_to_child < pathcosts[child]:
                 pathcosts[child] = cost_to_child            # update the cost
                 paths[child] = cell                         # set the backpointer
@@ -43,8 +50,6 @@ def path_to_cell(cell, paths):
         return []
     return path_to_cell(paths[cell], paths) + [cell]
     
-
-
 
 def navigation_edges(level, cell):
     """ Provides a list of adjacent cells and their respective costs from the given cell.
