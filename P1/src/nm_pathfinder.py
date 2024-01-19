@@ -21,7 +21,8 @@ def find_path (source_point, destination_point, mesh):
     boxes = {}
     # breadth_first_search(path, boxes, mesh, source_point, destination_point)
     # boxes, path = dijkstras_shortest_path(source_point, destination_point, mesh["boxes"], mesh["adj"])
-    boxes, path = astar_shortest_path(source_point, destination_point, mesh["boxes"], mesh["adj"])
+    # boxes, path = astar_shortest_path(source_point, destination_point, mesh["boxes"], mesh["adj"])
+    boxes, path = bidirectional_astar_shortest_path(source_point, destination_point, mesh["boxes"], mesh["adj"])
     return path, boxes.keys()
 
 
@@ -205,6 +206,95 @@ def astar_shortest_path(initial_position, destination, graph, adj):
     print("No path!")       
     return paths, []
 
+def bidirectional_astar_shortest_path(initial_position, destination, graph, adj):
+    # detail points
+    forward_detail_points = {}
+    backward_detail_points = {} 
+    # queue
+    queue = []
+    # paths
+    forward_paths = {}                              # maps cells to previous cells on path
+    backward_paths = {}                             # maps cells to previous cells on path
+    # pathcosts
+    forward_pathcosts = {}
+    backward_pathcosts = {}
+    start = None
+    goal = None
+
+    # find source and destination boxes
+    for box in graph:
+        if box[0] <= initial_position[0] and box[1] >= initial_position[0] and box[2] <= initial_position[1] and box[3] >= initial_position[1]:
+            forward_paths[box] = None
+            forward_pathcosts[box] = 0
+            start = box
+            forward_detail_points[box] = initial_position
+            heappush(queue, (0, box, 1))  # maintain a priority queue of cells
+
+        if box[0] <= destination[0] and box[1] >= destination[0] and box[2] <= destination[1] and box[3] >= destination[1]:
+            backward_paths[box] = None
+            backward_pathcosts[box] = 0
+            goal = box
+            backward_detail_points[box] = destination
+            heappush(queue, (0, box, 0))  # maintain a priority queue of cells
+
+    # going through the queue
+    while queue:
+        priority, cell, curr_goal = heappop(queue)      # pop the priority cell
+        # is goal is reached
+        if (cell in backward_paths and cell in forward_paths):
+            path = []
+            current_box = cell
+            
+            # Add the forward path
+            while current_box is not None:
+                path.insert(0,forward_detail_points[current_box])
+                current_box = forward_paths[current_box]
+
+            # Add the backward path in reverse order
+            current_box = cell
+            while current_box is not None:
+                path.append(backward_detail_points[current_box])
+                current_box = backward_paths[current_box]
+
+            print("Path found!")
+
+            forward_paths.update(backward_paths)
+            return forward_paths, path
+        
+        # investigate child nodes
+        for child in adj[cell]:
+            # calculate cost along this path to child
+            
+            cost_to_child = forward_pathcosts[cell] if curr_goal == 1 else backward_pathcosts[cell]
+            pathcosts = 0
+            paths = 0
+            if curr_goal == 1:
+                paths = forward_paths
+                pathcosts = forward_pathcosts
+            else:
+                paths = backward_paths
+                pathcosts = backward_pathcosts
+
+            if child not in pathcosts or cost_to_child < pathcosts[child]:
+                pathcosts[child] = cost_to_child  # update the cost
+                priority = 0
+
+                # setting detail points
+                if curr_goal == 1:
+                    current_point = forward_detail_points[cell]           
+                    forward_detail_points[child] = detail_p(current_point,cell, child)
+                    priority = cost_to_child + euclidean_distance(forward_detail_points[child], destination)
+                else:
+                    current_point = backward_detail_points[cell]           
+                    backward_detail_points[child] = detail_p(current_point,cell, child)
+                    priority = cost_to_child + euclidean_distance(backward_detail_points[child], initial_position)
+                heappush(queue, (priority, child, curr_goal))  # indicate the goal
+                paths[child] = cell  # set the backpointer
+
+    print("No path!")  
+    forward_paths.update(backward_paths)     
+    return forward_paths, []
+
 
 def transition_cost(cell, cell2):
     distance = sqrt((cell2[0] - cell[0])**2 + (cell2[2] - cell[2])**2)
@@ -237,3 +327,10 @@ def detail_p(current_point, current, next_node):
         ycord = current_point[1]
 
     return xcord, ycord
+
+# Contributions
+# partner: Hung
+# Hung and I worked on breadth first search initially together and managed to figure it out
+# I helped Hung a bit on Djikstra's search but he figured it out on his own
+# We worked individually on A* since there wasn't much to change
+# We worked together on bidirectional as both had issues with displaying paths
